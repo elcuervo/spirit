@@ -1,26 +1,45 @@
 module Spirit
+  class LazyModel
+    def initialize(name, &block)
+      @name = name
+      @block = block
+    end
+
+    def method_missing(method, *args)
+      ::Kernel.raise(::NoMethodError, "Call to %s#%s, but not defined." % [@name, method])
+    end
+
+    def load
+      @block.call
+    end
+  end
+
   class Model
+    def initialize(attributes = {})
+      @_attributes = {}
+      @_memoized = {}
 
-    class Collection
-      include Enumerable
+      update_attributes(attributes)
     end
 
-    class Wrapper < BasicObject
+    def self.const_missing(name)
+      model = LazyModel.new(name) { const_get(name) }
+    rescue NameError
     end
 
-    attr_accessor :url, :resource
-    @@attributes ||= Hash.new { |hash, key| hash[key] = [] }
-
-    def initialize(attrs = {})
-      @_attributes = Hash.new { |hash, key| hash[key] = get(key) }
-      attrs.each { |key, value| send(:"#{key}=", value) }
+    def update_attributes(attributes)
+      attributes.each do |key, value|
+        send(:"#{key}=", value)
+      end
     end
 
-    def create
-      self
+    def self.has_one(name, model)
+      define_method(name) do
+        @_memoized[name] ||= model.load.new
+      end
     end
 
-    def self.attribute(name)
+    def self.attribute(name, cast = nil)
       define_method(name) do
         @_attributes[name]
       end
@@ -32,46 +51,8 @@ module Spirit
       attributes << name unless attributes.include?(name)
     end
 
-    def self.has_one(model)
-    end
-
-    def self.has_many(model)
-    end
-
-    def self.belongs_to(model)
-    end
-
-    def self.const_missing(name)
-      wrapper = Wrapper.new(name) { const_get(name) }
-
-      begin
-        super(name)
-      rescue NameError; end
-
-      wrapper
-    end
-
-    def self.url(url)
-      @url = url
-    end
-
-    def self.resource(resource)
-      @resource = resource
-    end
-
-    def self.create(*args)
-      model = new(*args)
-      model.create
-      model
-    end
-
     def self.attributes
-      @@attributes[self]
+      @attributes ||= []
     end
-
-    def self.relations
-      @@relations[self]
-    end
-
   end
 end

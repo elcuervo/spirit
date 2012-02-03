@@ -6,6 +6,12 @@ Resources represented as models
 
 ## Currently Implemented
 
+* has_one
+* belongs_to
+* has_many
+
+## Example
+
 ```ruby
 class Bro << Spirit::Model
   attribute :name

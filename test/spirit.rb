@@ -4,7 +4,9 @@ require_relative "../lib/spirit"
 class User < Spirit::Model
   attribute :id
   attribute :name
+
   has_one :room, Room
+  has_many :friends, User
 end
 
 class Room < Spirit::Model
@@ -39,3 +41,12 @@ test "model relations" do
   assert_equal user.object_id, user.room.owner.object_id
 end
 
+test "has_many" do
+  user = User.create(name: 'Forever Alone')
+  assert_equal [], user.friends
+
+  user = User.create(name: 'Barney')
+  user.friends.create(name: 'Ted')
+  assert_equal 1, user.friends.length
+  assert user.friends.first.is_a?(User)
+end

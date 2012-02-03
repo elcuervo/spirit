@@ -36,7 +36,22 @@ module Spirit
     end
   end
 
-  # Public: TODO
+  class Collection < Array
+    # Public: Initializes the collection for a given model
+    def initialize(model)
+      @model = model
+    end
+
+    # Public: Creates a new model for the collection and pushes it to current
+    #         list.
+    #
+    # attributes - The Hash of attributes
+    def create(attributes = {})
+      self.push @model.create(attributes)
+    end
+  end
+
+  # Public: The model itself
   #         Use is throght extension
   #
   # Returns a Spirit::Model
@@ -74,15 +89,21 @@ module Spirit
       end
 
 
-      # Internal: Establish the _has_one_ relation.
+      # Internal: Establish the relation.
       #
       # name -  The Symbol of the attribute to be related with the model
       # model - The Model to related with the given key
-      def has_one(name, model)
+      def relation(name, model)
         lazy_model = LazyModel.eager(model)
 
         define_method(name) do
-          @_memoized[name] ||= @_attributes[name] || lazy_model.load.new
+          @_memoized[name] ||= begin
+            @_attributes[name] || if lazy_model.load.kind_of?(Spirit::Collection)
+              lazy_model.load
+            else
+               lazy_model.load.new
+            end
+          end
         end
 
         define_method(:"#{name}=") do |value|
@@ -97,7 +118,16 @@ module Spirit
 
         attributes << Array[name, model] unless attributes.include?(name)
       end
-      alias belongs_to has_one
+      alias belongs_to relation
+      alias has_one relation
+
+      # Internal: Establish a collection as a relation
+      #
+      # name -  The Symbol of the attribute to be related with the model
+      # model - The Model to related with the given collection
+      def has_many(name, model)
+        relation(name, Collection.new(model))
+      end
 
       # Public: Creates a new model
       #

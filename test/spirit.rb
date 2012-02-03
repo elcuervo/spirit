@@ -47,6 +47,10 @@ test "has_many" do
 
   user = User.create(name: 'Barney')
   user.friends.create(name: 'Ted')
-  assert_equal 1, user.friends.length
+  user.friends.create(name: 'Robin')
+  user.friends.create(name: 'Marshall')
+  user.friends.create(name: 'Lilly')
+
+  assert_equal 4, user.friends.length
   assert user.friends.first.is_a?(User)
 end

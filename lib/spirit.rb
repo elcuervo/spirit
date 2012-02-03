@@ -15,8 +15,9 @@ module Spirit
     # Public: Initializes the LazyModel
     #
     # name - The Symbol of the model.
-    def initialize(name)
+    def initialize(name, &block)
       @name = name
+      @block = block
     end
 
     # Internal: Raises an error for the missing method or the missing class.
@@ -24,9 +25,14 @@ module Spirit
       ::Kernel.raise(::NoMethodError, "Call to %s#%s, but not defined." % [@name, method])
     end
 
+    # Public: Used to force eager loading so we can have a common API
+    def self.eager(object)
+      object.class == self ? object : new(object.inspect) { object }
+    end
+
     # Public: Loads the lazy-loaded model
     def load
-      ::Kernel.const_get(@name)
+      @block.call
     end
   end
 
@@ -49,8 +55,12 @@ module Spirit
     #
     # name - The Symbol of the class to be lazy loaded
     def self.const_missing(name)
-      model = LazyModel.new(name)
-    rescue NameError
+      model = LazyModel.new(name) { const_get(name) }
+      begin
+        super(name)
+      rescue NameError
+      end
+      model
     end
 
     # Public: Updates the attributes of the given model
@@ -67,8 +77,14 @@ module Spirit
     # name -  The Symbol of the attribute to be related with the model
     # model - The Model to related with the given key
     def self.has_one(name, model)
+      model = LazyModel.eager(model)
+
+      define_method(:"#{name}=") do |value|
+        @_attributes[name] = value
+      end
+
       define_method(name) do
-        @_memoized[name] ||= model.load.new
+        @_memoized[name] ||= @_attributes[name] || model.load.new
       end
 
       attributes << name unless attributes.include?(name)

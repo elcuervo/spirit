@@ -13,7 +13,7 @@ Resources represented as models
 ## Example
 
 ```ruby
-class Bro << Spirit::Model
+class Bro < Spirit::Model
   attribute :name
   attribute :gender
 

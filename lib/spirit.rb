@@ -51,18 +51,6 @@ module Spirit
       update_attributes(attributes)
     end
 
-    # Internal: Magically constructs a LazyModel for future evaluation.
-    #
-    # name - The Symbol of the class to be lazy loaded
-    def self.const_missing(name)
-      model = LazyModel.new(name) { const_get(name) }
-      begin
-        super(name)
-      rescue NameError
-      end
-      model
-    end
-
     # Public: Updates the attributes of the given model
     #
     # attributes - The Hash of attributes to be updated
@@ -72,50 +60,72 @@ module Spirit
       end
     end
 
-    # Internal: Establish the _has_one_ relation.
-    #
-    # name -  The Symbol of the attribute to be related with the model
-    # model - The Model to related with the given key
-    def self.has_one(name, model)
-      model = LazyModel.eager(model)
-
-      define_method(:"#{name}=") do |value|
-        @_attributes[name] = value
+    class << self
+      # Internal: Magically constructs a LazyModel for future evaluation.
+      #
+      # name - The Symbol of the class to be lazy loaded
+      def const_missing(name)
+        model = LazyModel.new(name) { const_get(name) }
+        begin
+          super(name)
+        rescue NameError
+        end
+        model
       end
 
-      define_method(name) do
-        @_memoized[name] ||= @_attributes[name] || model.load.new
+
+      # Internal: Establish the _has_one_ relation.
+      #
+      # name -  The Symbol of the attribute to be related with the model
+      # model - The Model to related with the given key
+      def has_one(name, model)
+        lazy_model = LazyModel.eager(model)
+
+        define_method(name) do
+          @_memoized[name] ||= @_attributes[name] || lazy_model.load.new
+        end
+
+        define_method(:"#{name}=") do |value|
+          value.class.attributes.each do |attribute|
+            if attribute.is_a?(Array)
+              key, model = attribute
+              value.update_attributes(Hash[key, self]) if self.class == model
+            end
+          end
+          @_attributes[name] = value
+        end
+
+        attributes << Array[name, model] unless attributes.include?(name)
+      end
+      alias belongs_to has_one
+
+      # Public: Creates a new model
+      #
+      # attributes - The Hash of attributes
+      def create(attributes = {})
+        new(attributes)
       end
 
-      attributes << name unless attributes.include?(name)
-    end
+      # Internal: Defines a method with the name of attribute for the model.
+      # name - The String name of the attribute
+      def attribute(name)
+        define_method(name) do
+          @_attributes[name]
+        end
 
-    # Public: Creates a new model
-    #
-    # attributes - The Hash of attributes
-    def self.create(attributes = {})
-      new(attributes)
-    end
+        define_method(:"#{name}=") do |value|
+          @_attributes[name] = value
+        end
 
-    # Internal: Defines a method with the name of attribute for the model.
-    # name - The String name of the attribute
-    def self.attribute(name)
-      define_method(name) do
-        @_attributes[name]
+        attributes << name unless attributes.include?(name)
       end
 
-      define_method(:"#{name}=") do |value|
-        @_attributes[name] = value
+      # Public: The Array of attributes names
+      #
+      # Returns Array of attributes
+      def attributes
+        @attributes ||= []
       end
-
-      attributes << name unless attributes.include?(name)
-    end
-
-    # Public: The Array of attributes names
-    #
-    # Returns Array of attributes
-    def self.attributes
-      @attributes ||= []
     end
 
   end

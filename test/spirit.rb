@@ -9,6 +9,7 @@ end
 
 class Room < Spirit::Model
   attribute :number
+  belongs_to :owner, User
 end
 
 test "attributes" do
@@ -30,9 +31,11 @@ test "create" do
   assert_equal 'Barney', user.name
 end
 
-test "nested creation" do
+test "model relations" do
   user = User.create(name: 'Barney', room: Room.create(number: 1))
   assert user.room.is_a?(Room)
   assert_equal 1, user.room.number
+  assert_equal user, user.room.owner
+  assert_equal user.object_id, user.room.owner.object_id
 end
 

@@ -1,5 +1,7 @@
 # Spirit
 
+![Spirit](https://github.com/elcuervo/spirit/raw/master/docs/img/spirit.jpg)
+
 Resources represented as models
 
 ## Currently Implemented

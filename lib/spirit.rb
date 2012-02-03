@@ -74,6 +74,13 @@ module Spirit
       attributes << name unless attributes.include?(name)
     end
 
+    # Public: Creates a new model
+    #
+    # attributes - The Hash of attributes
+    def self.create(attributes = {})
+      new(attributes)
+    end
+
     # Internal: Defines a method with the name of attribute for the model.
     # name - The String name of the attribute
     def self.attribute(name)
@@ -94,5 +101,6 @@ module Spirit
     def self.attributes
       @attributes ||= []
     end
+
   end
 end

@@ -3,6 +3,7 @@ require_relative "../lib/spirit"
 
 class User < Spirit::Model
   attribute :id
+  attribute :name
   has_one :room, Room
 end
 
@@ -21,4 +22,9 @@ end
 test "has_one" do
   user = User.new
   assert user.room.is_a?(Room)
+end
+
+test "create" do
+  user = User.create(name: 'Barney')
+  assert_equal 'Barney', user.name
 end

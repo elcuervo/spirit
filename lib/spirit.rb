@@ -1,3 +1,6 @@
+require 'net/http/pool'
+require 'json'
+
 module Spirit
   # Internal: Used for lazy evaluation of the model.
   #           This is the magic behind the asignation of relations when they are
@@ -56,10 +59,12 @@ module Spirit
   #
   # Returns a Spirit::Model
   class Model
+    DEFAULT_HEADERS = { 'Content-Type' => 'application/json' }
     # Public: Initializes a Spirit::Model
     #
     # attributes - The Hash of the attributes of the model
     def initialize(attributes = {})
+      @pool = Net::HTTP::Pool.new('http://localhost:4000', debug: true)
       @_attributes = {}
       @_memoized = {}
 
@@ -71,7 +76,7 @@ module Spirit
     # attributes - The Hash of attributes to be updated
     def update_attributes(attributes)
       attributes.each do |key, value|
-        send(:"#{key}=", value)
+        send(:"#{key}=", value) if respond_to?(:"#{key}=")
       end
     end
 
@@ -107,10 +112,17 @@ module Spirit
         end
 
         define_method(:"#{name}=") do |value|
-          value.class.attributes.each do |attribute|
+          if !value.is_a?(Spirit::Model)
+            self.send(name).update_attributes(value)
+            value = self.send(name)
+          end
+          value.attributes.each do |attribute|
             if attribute.is_a?(Array)
               key, model = attribute
-              value.update_attributes(Hash[key, self]) if self.class == model
+              if self.class == model
+                value.update_attributes(Hash[key, self])
+                value.parents << self.class
+              end
             end
           end
           @_attributes[name] = value
@@ -133,7 +145,9 @@ module Spirit
       #
       # attributes - The Hash of attributes
       def create(attributes = {})
-        new(attributes)
+        model = new(attributes)
+        model.create(@_resource)
+        model
       end
 
       # Internal: Defines a method with the name of attribute for the model.
@@ -156,6 +170,51 @@ module Spirit
       def attributes
         @attributes ||= []
       end
+
+      def parents
+        @parents ||= []
+      end
+
+      def resource(resource)
+        @_resource = resource
+      end
+
+      def site(url)
+        @_site = url
+      end
+    end # end class
+
+    def create(resource)
+      response = @pool.post("/" + resource, self.to_hash.to_json, DEFAULT_HEADERS)
+      new_attributes = JSON response.body
+      update_attributes(new_attributes)
+    end
+
+    def attributes
+      @_attributes
+    end
+
+    def resource
+      @_resource
+    end
+
+    def parents
+      @parents ||= []
+    end
+
+    def to_hash
+      hash = {}
+      attributes.each do |key, value|
+        new_value = case
+                    when parents.include?(value.class)
+                    when value.is_a?(Spirit::Model)
+                      value.to_hash
+                    else
+                      value
+                    end
+        hash[key] = new_value if new_value
+      end
+      hash
     end
 
   end

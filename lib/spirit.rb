@@ -3,8 +3,8 @@ require 'json'
 
 module Spirit
   # Internal: Used for lazy evaluation of the model.
-  #           This is the magic behind the asignation of relations when they are
-  #           not defined yet.
+  #           This is the magic behind the asignation of relations when they
+  #           are not defined yet.
   #
   # Examples
   #
@@ -25,7 +25,8 @@ module Spirit
 
     # Internal: Raises an error for the missing method or the missing class.
     def method_missing(method, *args)
-      ::Kernel.raise(::NoMethodError, "Call to %s#%s, but not defined." % [@name, method])
+      message = "Call to %s#%s, but not defined." % [@name, method]
+      ::Kernel.raise(::NoMethodError, message)
     end
 
     # Public: Used to force eager loading so we can have a common API
@@ -37,8 +38,9 @@ module Spirit
     def load
       @block.call
     end
-  end
+  end # end LazyModel
 
+  # Public:
   class Collection < Array
     # Public: Initializes the collection for a given model
     def initialize(model)
@@ -52,7 +54,7 @@ module Spirit
     def create(attributes = {})
       self.push @model.create(attributes)
     end
-  end
+  end # end Collection
 
   # Public: The model itself
   #         Use is throght extension
@@ -64,22 +66,20 @@ module Spirit
     #
     # attributes - The Hash of the attributes of the model
     def initialize(attributes = {})
-      @pool = Net::HTTP::Pool.new('http://localhost:4000', debug: true)
+      @pool = Net::HTTP::Pool.new('http://localhost:4000')
       @_attributes = {}
       @_memoized = {}
 
       update_attributes(attributes)
     end
 
-    # Public: Updates the attributes of the given model
-    #
-    # attributes - The Hash of attributes to be updated
     def update_attributes(attributes)
       attributes.each do |key, value|
         send(:"#{key}=", value) if respond_to?(:"#{key}=")
       end
     end
 
+    # Private: TODO
     class << self
       # Internal: Magically constructs a LazyModel for future evaluation.
       #
@@ -93,26 +93,26 @@ module Spirit
         model
       end
 
-
-      # Internal: Establish the relation.
-      #
-      # name -  The Symbol of the attribute to be related with the model
-      # model - The Model to related with the given key
-      def relation(name, model)
-        lazy_model = LazyModel.eager(model)
-
+      # Private: TODO
+      def lazy_load(name, model)
         define_method(name) do
           @_memoized[name] ||= begin
-            @_attributes[name] || if lazy_model.load.kind_of?(Spirit::Collection)
+            return @_attributes[name] if @_attributes[name]
+            lazy_model = LazyModel.eager(model)
+
+            if lazy_model.load.kind_of?(Spirit::Collection)
               lazy_model.load
             else
-               lazy_model.load.new
+              lazy_model.load.new
             end
           end
         end
+      end
 
+      # Private: TODO
+      def lazy_set(name)
         define_method(:"#{name}=") do |value|
-          if !value.is_a?(Spirit::Model)
+          if value.is_a?(Hash)
             self.send(name).update_attributes(value)
             value = self.send(name)
           end
@@ -127,6 +127,15 @@ module Spirit
           end
           @_attributes[name] = value
         end
+      end
+
+      # Internal: Establish the relation.
+      #
+      # name -  The Symbol of the attribute to be related with the model
+      # model - The Model to related with the given key
+      def relation(name, model)
+        lazy_load(name, model)
+        lazy_set(name)
 
         attributes << Array[name, model] unless attributes.include?(name)
       end
@@ -185,9 +194,10 @@ module Spirit
     end # end class
 
     def create(resource)
-      response = @pool.post("/" + resource, self.to_hash.to_json, DEFAULT_HEADERS)
-      new_attributes = JSON response.body
-      update_attributes(new_attributes)
+      @pool.post("/" + resource, to_hash.to_json, DEFAULT_HEADERS) do |res|
+        new_attributes = JSON res.body
+        update_attributes(new_attributes)
+      end
     end
 
     def attributes
@@ -217,5 +227,5 @@ module Spirit
       hash
     end
 
-  end
-end
+  end # end Model
+end #end Spirit
